@@ -1,29 +1,44 @@
-# turtlebot2_ros2
-This project contains a minimal example for setting up ROS 2 Humble on the Kobuki [TurtleBot 2 platform](https://www.turtlebot.com/). Teleoperation using the keyboard and a joystick controller is demonstrated. 
-For a comprehensive guide, see [idorobotics.com](https://idorobotics.com/2024/02/20/ros2-on-kobuki-turtlebot/).
+# turtlebot2_ros2 (Jazzy)
+Fork of [idorobotics/turtlebot2_ros2](https://github.com/idorobotics/turtlebot2_ros2), updated for **ROS 2 Jazzy on Ubuntu 24.04**, for the Kobuki [TurtleBot 2 platform](https://www.turtlebot.com/). Teleoperation using the keyboard and a joystick controller is demonstrated.
+For a comprehensive guide to the original Humble setup, see [idorobotics.com](https://idorobotics.com/2024/02/20/ros2-on-kobuki-turtlebot/).
+
+There are no Jazzy binaries for the Kobuki driver (`ros-jazzy-kobuki-node` is not in apt), so it is built from source. The submodules are pinned to commits known to build on Jazzy.
+
 ## Setup
-To setup the TurtleBot 2 mobile robot base:
-- Install the velocity smoother and sophus packages:
-```sudo apt-get install ros-humble-kobuki-velocity-smoother ros-humble-sophus```
-- In a ROS 2 workspace, clone this repository (which adds the kobuki_core, kobuki_ros, kobuki_ros_interfaces, cmd_vel_mux, ecl_core and ecl_lite packages):
-```git clone https://github.com/idorobotics/turtlebot2_ros2.git```
-- Install any missing depencies:
-```rosdep install -i --from-path src --rosdistro humble -y```
-- Build the workspace
-```colcon build --symlink-install --executor sequential```
-- Update udev rules, check version information and run the kobuki-simple-keyop test noted in the [official guide](https://kobuki.readthedocs.io/en/release-1.0.x/software.html).
- ## Testing
- To test this setup, run remote teleoperation to control (drive around) the robot from a workstation (laptop) computer following the steps below:
- - Install the teleop packages:
- ```sudo apt-get install ros-humble-teleop-twist-keyboard ros-humble-joy-teleop ros-humble-teleop-twist-joy```
- - Open an ssh connection to the robot then start the robot:
- ```ros2 launch kobuki_node kobuki_node-launch.py```
- - Run keyboard teleoperation (to drive the robot using a keyboard):
- ```ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args --remap cmd_vel:=commands/velocity```
- - Alternatively, run joystick teleoperation (to drive the robot using a joystick):
- ```ros2 launch teleop_twist_joy teleop-launch.py config_filepath:='/path/to/ros2_ws/src/configs/pdp.config.yaml' joy_vel:='commands/velocity'```
+Requires ROS 2 Jazzy (`ros-jazzy-desktop` or similar) already installed.
 
-   If you're using a different joystick like PS3 then run:
-```ros2 launch teleop_twist_joy teleop-launch.py joy_config:='ps3' joy_vel:='commands/velocity'```
+```bash
+mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
+git clone --recurse-submodules https://github.com/lkaixian/turtlebot2_ros2_jazzy.git turtlebot2_ros2
+conda deactivate   # if you use conda: it breaks the ROS 2 build
+./turtlebot2_ros2/setup.sh
+```
 
-The Kobuki TurtleBot 2 is now fully migrated to ROS 2 and is ready for more complex navigation tasks. 
+`setup.sh` installs the apt/rosdep dependencies, installs the udev rule that creates `/dev/kobuki`, adds you to `dialout`, and builds with `colcon`. It uses `sudo` for the apt, udev and `ecl_build` steps. Log out and back in afterwards so the `dialout` group takes effect.
+
+### Notes on the build
+- **Conda:** with conda active, CMake picks up conda's Python and fails with `No module named 'catkin_pkg'`. `setup.sh` refuses to run while conda is active, and passes `-DPython3_EXECUTABLE=/usr/bin/python3`.
+- **`-Werror`:** the `ecl_*` packages build with `-Werror`, which fails on GCC 13 over a harmless `-Woverloaded-virtual` warning. `setup.sh` removes `-Werror` from `/opt/ros/jazzy/share/ecl_build/cmake/ecl_cxx.cmake` (backup saved as `ecl_cxx.cmake.bak`). Remaining compiler and CMake warnings during the build are expected.
+
+## Testing
+Check the device exists, then start the driver:
+```bash
+ls -l /dev/kobuki
+source ~/ros2_ws/install/setup.bash
+ros2 launch kobuki_node kobuki_node-launch.py
+```
+If the port cannot be opened: `ros2 launch kobuki_node kobuki_node-launch.py device_port:=/dev/kobuki`.
+
+In a second terminal (source the workspace again), drive with the keyboard:
+```bash
+ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args --remap cmd_vel:=commands/velocity
+```
+Or with a joystick:
+```bash
+ros2 launch teleop_twist_joy teleop-launch.py config_filepath:='/path/to/ros2_ws/src/turtlebot2_ros2/configs/pdp.config.yaml' joy_vel:='commands/velocity'
+```
+For a different joystick like PS3: `ros2 launch teleop_twist_joy teleop-launch.py joy_config:='ps3' joy_vel:='commands/velocity'`
+
+The Kobuki stops if velocity commands stop arriving, so publish continuously. Useful topics: `/odom`, `/events/bumper`, `/events/cliff`, `/sensors/core`.
+
+Both terminals must use the same `ROS_DOMAIN_ID` (and `ROS_LOCALHOST_ONLY` setting).
