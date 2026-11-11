@@ -6,7 +6,6 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WS_DIR="$(cd "$REPO_DIR/../.." && pwd)"
-ECL_CXX=/opt/ros/jazzy/share/ecl_build/cmake/ecl_cxx.cmake
 
 if [[ -n "${CONDA_PREFIX:-}" ]]; then
   echo "Conda is active ($CONDA_PREFIX). Run 'conda deactivate' first: it breaks the ROS 2 build." >&2
@@ -28,24 +27,20 @@ sudo apt-get install -y \
 echo "==> Installing remaining rosdep dependencies"
 rosdep install -i --from-path "$REPO_DIR" --rosdistro jazzy -y
 
-# The ecl packages build with -Werror, which fails on GCC 13 over a harmless
-# -Woverloaded-virtual warning. Drop -Werror from the installed ecl_build file (backup kept).
-if grep -q -- ' -Werror' "$ECL_CXX"; then
-  echo "==> Removing -Werror from $ECL_CXX (backup: $ECL_CXX.bak)"
-  sudo sed -i.bak 's/ -Werror//' "$ECL_CXX"
-fi
-
 echo "==> Installing udev rule for /dev/kobuki (sudo)"
 sudo cp "$REPO_DIR/udev/60-kobuki.rules" /etc/udev/rules.d/60-kobuki.rules
 sudo udevadm control --reload-rules
 sudo udevadm trigger
 sudo usermod -aG dialout "$USER"
 
+# The ecl packages build with -Werror, which fails on GCC 13 over a harmless
+# -Woverloaded-virtual warning. Keep the warning but make it non-fatal.
 echo "==> Building"
 cd "$WS_DIR"
 colcon build --symlink-install --executor sequential \
   --packages-up-to kobuki_node \
-  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3 -Wno-dev
+  --cmake-args -DPython3_EXECUTABLE=/usr/bin/python3 -Wno-dev \
+  -DCMAKE_CXX_FLAGS="-Wno-error=overloaded-virtual"
 
 echo
 echo "Done. In every new terminal:  source $WS_DIR/install/setup.bash"

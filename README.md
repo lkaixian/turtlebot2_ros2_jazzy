@@ -14,11 +14,11 @@ conda deactivate   # if you use conda: it breaks the ROS 2 build
 ./turtlebot2_ros2/setup.sh
 ```
 
-`setup.sh` installs the apt/rosdep dependencies, installs the udev rule that creates `/dev/kobuki`, adds you to `dialout`, and builds with `colcon`. It uses `sudo` for the apt, udev and `ecl_build` steps. Log out and back in afterwards so the `dialout` group takes effect.
+`setup.sh` installs the apt/rosdep dependencies, installs the udev rule that creates `/dev/kobuki`, adds you to `dialout`, and builds with `colcon`. It uses `sudo` for the apt and udev steps. Log out and back in afterwards so the `dialout` group takes effect.
 
 ### Notes on the build
 - **Conda:** with conda active, CMake picks up conda's Python and fails with `No module named 'catkin_pkg'`. `setup.sh` refuses to run while conda is active, and passes `-DPython3_EXECUTABLE=/usr/bin/python3`.
-- **`-Werror`:** the `ecl_*` packages build with `-Werror`, which fails on GCC 13 over a harmless `-Woverloaded-virtual` warning. `setup.sh` removes `-Werror` from `/opt/ros/jazzy/share/ecl_build/cmake/ecl_cxx.cmake` (backup saved as `ecl_cxx.cmake.bak`). Remaining compiler and CMake warnings during the build are expected.
+- **`-Werror`:** the `ecl_*` packages build with `-Werror`, which fails on GCC 13 over a harmless `-Woverloaded-virtual` warning. `setup.sh` passes `-DCMAKE_CXX_FLAGS="-Wno-error=overloaded-virtual"` so the warning is no longer fatal. If you build by hand, pass the same flag. Remaining compiler and CMake warnings during the build are expected.
 
 ## Testing
 Check the device exists, then start the driver:
